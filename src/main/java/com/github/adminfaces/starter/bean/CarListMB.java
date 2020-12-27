@@ -1,84 +1,39 @@
 package com.github.adminfaces.starter.bean;
 
-import com.github.adminfaces.template.exception.BusinessException;
-import com.github.adminfaces.starter.infra.model.Filter;
+import com.github.adminfaces.persistence.bean.CrudMB;
+import com.github.adminfaces.persistence.service.CrudService;
+import com.github.adminfaces.persistence.service.Service;
 import com.github.adminfaces.starter.model.Car;
 import com.github.adminfaces.starter.service.CarService;
+import com.github.adminfaces.template.exception.BusinessException;
 import org.omnifaces.cdi.ViewScoped;
-import org.primefaces.model.FilterMeta;
-import org.primefaces.model.LazyDataModel;
-import org.primefaces.model.SortOrder;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import javax.inject.Inject;
 import javax.inject.Named;
 import java.io.Serializable;
 import java.util.List;
-import java.util.Map;
-import java.util.logging.Logger;
 
-import static com.github.adminfaces.starter.util.Utils.addDetailMessage;
+import static com.github.adminfaces.persistence.util.Messages.addDetailMessage;
+import static com.github.adminfaces.persistence.util.Messages.getMessage;
+import static com.github.adminfaces.template.util.Assert.has;
 
-
+/**
+ * Created by rmpestano on 12/02/17.
+ */
 @Named
 @ViewScoped
-public class CarListMB implements Serializable {
+public class CarListMB extends CrudMB<Car> implements Serializable {
 
     @Inject
     CarService carService;
 
-    Integer id;
+    @Inject
+    @Service
+    CrudService<Car, Integer> carCrudService; //generic injection example
 
-    LazyDataModel<Car> cars;
-
-    Filter<Car> filter = new Filter<>(new Car());
-
-    List<Car> selectedCars; //cars selected in checkbox column
-
-    List<Car> filteredValue;// datatable filteredValue attribute (column filters)
-
-    @PostConstruct
-    public void initDataModel() {
-        Logger.getLogger(getClass().getName()).info(getClass() + ": postConstruct");
-        cars = new LazyDataModel<>() {
-            @Override
-            public List<Car> load(int first, int pageSize,
-                                  String sortField, SortOrder sortOrder,
-                                  Map<String, FilterMeta> filters) {
-                com.github.adminfaces.starter.infra.model.SortOrder order = null;
-                if (sortOrder != null) {
-                    order = sortOrder.equals(SortOrder.ASCENDING) ? com.github.adminfaces.starter.infra.model.SortOrder.ASCENDING
-                            : sortOrder.equals(SortOrder.DESCENDING) ? com.github.adminfaces.starter.infra.model.SortOrder.DESCENDING
-                            : com.github.adminfaces.starter.infra.model.SortOrder.UNSORTED;
-                }
-                filter.setFirst(first).setPageSize(pageSize)
-                        .setSortField(sortField).setSortOrder(order)
-                        .setParams(filters);
-                List<Car> list = carService.paginate(filter);
-                setRowCount((int) carService.count(filter));
-                return list;
-            }
-
-            @Override
-            public int getRowCount() {
-                return super.getRowCount();
-            }
-
-            @Override
-            public Car getRowData(String key) {
-                return carService.findById(Integer.valueOf(key));
-            }
-        };
-    }
-
-    @PreDestroy
-    public void preDestroy() {
-        Logger.getLogger(getClass().getName()).info(getClass() + ": preDestroy");
-    }
-
-    public void clear() {
-        filter = new Filter<Car>(new Car());
+    @Inject
+    public void initService() {
+        setCrudService(carService);
     }
 
     public List<String> completeModel(String query) {
@@ -90,56 +45,91 @@ public class CarListMB implements Serializable {
         if (id == null) {
             throw new BusinessException("Provide Car ID to load");
         }
-        selectedCars.add(carService.findById(id));
+        Car carFound = carCrudService.findById(id);
+        if (carFound == null) {
+            throw new BusinessException(String.format("No car found with id %s", id));
+        }
+        selectionList.add(carFound);
+        getFilter().addParam("id", id);
     }
 
     public void delete() {
         int numCars = 0;
-        for (Car selectedCar : selectedCars) {
+        for (Car selectedCar : selectionList) {
             numCars++;
             carService.remove(selectedCar);
         }
-        selectedCars.clear();
+        selectionList.clear();
         addDetailMessage(numCars + " cars deleted successfully!");
+        clear();
     }
 
-    public List<Car> getSelectedCars() {
-        return selectedCars;
+    public String getSearchCriteria() {
+        StringBuilder sb = new StringBuilder(21);
+
+        String nameParam = null;
+        Car carFilter = filter.getEntity();
+
+        Integer idParam = null;
+        if (filter.hasParam("id")) {
+            idParam = filter.getIntParam("id");
+        }
+
+        if (has(idParam)) {
+            sb.append("<b>id</b>: ").append(idParam).append(", ");
+        }
+
+        if (filter.hasParam("name")) {
+            nameParam = filter.getStringParam("name");
+        } else if (has(carFilter) && carFilter.getName() != null) {
+            nameParam = carFilter.getName();
+        }
+
+        if (has(nameParam)) {
+            sb.append("<b>name</b>: ").append(nameParam).append(", ");
+        }
+
+        String modelParam = null;
+        if (filter.hasParam("model")) {
+            modelParam = filter.getStringParam("model");
+        } else if (has(carFilter) && carFilter.getModel() != null) {
+            modelParam = carFilter.getModel();
+        }
+
+        if (has(modelParam)) {
+            sb.append("<b>model</b>: ").append(modelParam).append(", ");
+        }
+
+        Double priceParam = null;
+        if (filter.hasParam("price")) {
+            priceParam = filter.getDoubleParam("price");
+        } else if (has(carFilter) && carFilter.getModel() != null) {
+            priceParam = carFilter.getPrice();
+        }
+
+        if (has(priceParam)) {
+            sb.append("<b>price</b>: ").append(priceParam).append(", ");
+        }
+
+        if (filter.hasParam("minPrice")) {
+            sb.append("<b>").append(getMessage("label.minPrice")).append("</b>: ").append(filter.getParam("minPrice")).append(", ");
+        }
+
+        if (filter.hasParam("maxPrice")) {
+            sb.append("<b>").append(getMessage("label.maxPrice")).append("</b>: ").append(filter.getParam("maxPrice")).append(", ");
+        }
+
+        int commaIndex = sb.lastIndexOf(",");
+
+        if (commaIndex != -1) {
+            sb.deleteCharAt(commaIndex);
+        }
+
+        if (sb.toString().trim().isEmpty()) {
+            return "No search criteria";
+        }
+
+        return sb.toString();
     }
 
-    public List<Car> getFilteredValue() {
-        return filteredValue;
-    }
-
-    public void setFilteredValue(List<Car> filteredValue) {
-        this.filteredValue = filteredValue;
-    }
-
-    public void setSelectedCars(List<Car> selectedCars) {
-        this.selectedCars = selectedCars;
-    }
-
-    public LazyDataModel<Car> getCars() {
-        return cars;
-    }
-
-    public void setCars(LazyDataModel<Car> cars) {
-        this.cars = cars;
-    }
-
-    public Filter<Car> getFilter() {
-        return filter;
-    }
-
-    public void setFilter(Filter<Car> filter) {
-        this.filter = filter;
-    }
-
-    public Integer getId() {
-        return id;
-    }
-
-    public void setId(Integer id) {
-        this.id = id;
-    }
 }

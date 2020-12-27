@@ -4,139 +4,72 @@
  */
 package com.github.adminfaces.starter.service;
 
-import com.github.adminfaces.template.exception.BusinessException;
-import com.github.adminfaces.starter.infra.model.Filter;
-import com.github.adminfaces.starter.infra.model.SortOrder;
+import com.github.adminfaces.persistence.model.Filter;
+import com.github.adminfaces.persistence.service.CrudService;
 import com.github.adminfaces.starter.model.Car;
+import com.github.adminfaces.starter.model.Car_;
+import com.github.adminfaces.template.exception.BusinessException;
+import org.apache.deltaspike.data.api.criteria.Criteria;
 
 import javax.enterprise.context.Dependent;
 import javax.inject.Inject;
+import javax.transaction.Transactional;
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static com.github.adminfaces.template.util.Assert.has;
 
 /**
  * @author rmpestano
- * Car Business logic
  */
+@Transactional(Transactional.TxType.SUPPORTS)
 @Dependent
-public class CarService implements Serializable {
+public class CarService extends CrudService<Car, Integer> implements Serializable {
 
     @Inject
-    List<Car> allCars;
+    protected CarRepository carRepository;//you can create repositories to extract complex queries from your service
 
-    public List<Car> listByModel(String model) {
-        return allCars.stream()
-                .filter(c -> c.getModel().equalsIgnoreCase(model))
-                .collect(Collectors.toList());
+    protected Criteria<Car, Car> configRestrictions(Filter<Car> filter) {
 
-    }
+        Criteria<Car, Car> criteria = criteria();
 
-    public List<Car> paginate(Filter<Car> filter) {
-        List<Car> pagedCars = new ArrayList<>();
-        if(has(filter.getSortOrder()) && !SortOrder.UNSORTED.equals(filter.getSortOrder())) {
-                pagedCars = allCars.stream().
-                    sorted((c1, c2) -> {
-                        if (filter.getSortOrder().isAscending()) {
-                            return c1.getId().compareTo(c2.getId());
-                        } else {
-                            return c2.getId().compareTo(c1.getId());
-                        }
-                    })
-                    .collect(Collectors.toList());
-            }
-
-        int page = filter.getFirst() + filter.getPageSize();
-        if (filter.getParams().isEmpty()) {
-            pagedCars = pagedCars.subList(filter.getFirst(), page > allCars.size() ? allCars.size() : page);
-            return pagedCars;
-        }
-
-        List<Predicate<Car>> predicates = configFilter(filter);
-
-        List<Car> pagedList = allCars.stream().filter(predicates
-                .stream().reduce(Predicate::or).orElse(t -> true))
-                .collect(Collectors.toList());
-
-        if (page < pagedList.size()) {
-            pagedList = pagedList.subList(filter.getFirst(), page);
-        }
-
-        if (has(filter.getSortField())) {
-            pagedList = pagedList.stream().
-                    sorted((c1, c2) -> {
-                        boolean asc = SortOrder.ASCENDING.equals(filter.getSortOrder());
-                        if (asc) {
-                            return c1.getId().compareTo(c2.getId());
-                        } else {
-                            return c2.getId().compareTo(c1.getId());
-                        }
-                    })
-                    .collect(Collectors.toList());
-        }
-        return pagedList;
-    }
-
-    private List<Predicate<Car>> configFilter(Filter<Car> filter) {
-        List<Predicate<Car>> predicates = new ArrayList<>();
+        //create restrictions based on parameters map
         if (filter.hasParam("id")) {
-            Predicate<Car> idPredicate = (Car c) -> c.getId().equals(filter.getParam("id"));
-            predicates.add(idPredicate);
+            criteria.eq(Car_.id, filter.getIntParam("id"));
         }
 
         if (filter.hasParam("minPrice") && filter.hasParam("maxPrice")) {
-            Predicate<Car> minMaxPricePredicate = (Car c) -> c.getPrice()
-                    >= Double.valueOf((String) filter.getParam("minPrice")) && c.getPrice()
-                    <= Double.valueOf((String) filter.getParam("maxPrice"));
-            predicates.add(minMaxPricePredicate);
+            criteria.between(Car_.price, filter.getDoubleParam("minPrice"), filter.getDoubleParam("maxPrice"));
         } else if (filter.hasParam("minPrice")) {
-            Predicate<Car> minPricePredicate = (Car c) -> c.getPrice()
-                    >= Double.valueOf((String) filter.getParam("minPrice"));
-            predicates.add(minPricePredicate);
+            criteria.gtOrEq(Car_.price, filter.getDoubleParam("minPrice"));
         } else if (filter.hasParam("maxPrice")) {
-            Predicate<Car> maxPricePredicate = (Car c) -> c.getPrice()
-                    <= Double.valueOf((String) filter.getParam("maxPrice"));
-            predicates.add(maxPricePredicate);
+            criteria.ltOrEq(Car_.price, filter.getDoubleParam("maxPrice"));
         }
 
+        //create restrictions based on filter entity
         if (has(filter.getEntity())) {
             Car filterEntity = filter.getEntity();
             if (has(filterEntity.getModel())) {
-                Predicate<Car> modelPredicate = (Car c) -> c.getModel().toLowerCase().contains(filterEntity.getModel().toLowerCase());
-                predicates.add(modelPredicate);
+                criteria.likeIgnoreCase(Car_.model, "%" + filterEntity.getModel());
             }
 
             if (has(filterEntity.getPrice())) {
-                Predicate<Car> pricePredicate = (Car c) -> c.getPrice().equals(filterEntity.getPrice());
-                predicates.add(pricePredicate);
+                criteria.eq(Car_.price, filterEntity.getPrice());
             }
 
             if (has(filterEntity.getName())) {
-                Predicate<Car> namePredicate = (Car c) -> c.getName().toLowerCase().contains(filterEntity.getName().toLowerCase());
-                predicates.add(namePredicate);
+                criteria.likeIgnoreCase(Car_.name, "%" + filterEntity.getName() + "%");
             }
         }
-        return predicates;
+        return criteria;
     }
 
-    public List<String> getModels(String query) {
-        return allCars.stream().filter(c -> c.getModel()
-                .toLowerCase().contains(query.toLowerCase()))
-                .map(Car::getModel)
-                .collect(Collectors.toList());
-    }
-
-    public void insert(Car car) {
+    public void beforeInsert(Car car) {
         validate(car);
-        car.setId(allCars.stream()
-                .mapToInt(c -> c.getId())
-                .max()
-                .getAsInt()+1);
-        allCars.add(car);
+    }
+
+    public void beforeUpdate(Car car) {
+        validate(car);
     }
 
     public void validate(Car car) {
@@ -145,44 +78,67 @@ public class CarService implements Serializable {
             be.addException(new BusinessException("Car model cannot be empty"));
         }
         if (!car.hasName()) {
-           be.addException(new BusinessException("Car name cannot be empty"));
+            be.addException(new BusinessException("Car name cannot be empty"));
         }
 
         if (!has(car.getPrice())) {
             be.addException(new BusinessException("Car price cannot be empty"));
         }
 
-        if (allCars.stream().filter(c -> c.getName().equalsIgnoreCase(car.getName())
-                && c.getId() != c.getId()).count() > 0) {
+        if (count(criteria()
+                .eqIgnoreCase(Car_.name, car.getName())
+                .notEq(Car_.id, car.getId())) > 0) {
+
             be.addException(new BusinessException("Car name must be unique"));
         }
-        if(has(be.getExceptionList())) {
+
+        if (has(be.getExceptionList())) {
             throw be;
         }
     }
 
 
-    public void remove(Car car) {
-        allCars.remove(car);
+    public List<Car> listByModel(String model) {
+        return criteria()
+                .likeIgnoreCase(Car_.model, model)
+                .getResultList();
     }
 
-    public long count(Filter<Car> filter) {
-        return allCars.stream()
-                .filter(configFilter(filter).stream()
-                        .reduce(Predicate::or).orElse(t -> true))
-                .count();
+    public List<String> getModels(String query) {
+        return criteria()
+                .select(String.class, attribute(Car_.model))
+                .likeIgnoreCase(Car_.model, "%" + query + "%")
+                .getResultList();
     }
 
-    public Car findById(Integer id) {
-        return allCars.stream()
-                .filter(c -> c.getId().equals(id))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException("Car not found with id " + id));
+    public Double getTotalPriceByModel(Car car) {
+        if (!has(car.hasModel())) {
+            throw new BusinessException("Provide car model to get the total price.");
+        }
+        return carRepository.getTotalPriceByModel(car.getModel().toUpperCase());
     }
 
-    public void update(Car car) {
-        validate(car);
-        allCars.remove(allCars.indexOf(car));
-        allCars.add(car);
+    @Override
+    @Transactional
+    public void insert(Car entity) {
+        super.insert(entity);
+    }
+
+    @Override
+    @Transactional
+    public void remove(Car entity) {
+        super.remove(entity);
+    }
+
+    @Override
+    @Transactional
+    public Car saveOrUpdate(Car entity) {
+        return super.saveOrUpdate(entity);
+    }
+
+    @Override
+    @Transactional
+    public Car update(Car entity) {
+        return super.update(entity);
     }
 }

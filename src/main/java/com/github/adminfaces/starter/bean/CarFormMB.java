@@ -4,100 +4,52 @@
  */
 package com.github.adminfaces.starter.bean;
 
+import com.github.adminfaces.persistence.bean.BeanService;
+import com.github.adminfaces.persistence.bean.CrudMB;
 import com.github.adminfaces.starter.model.Car;
 import com.github.adminfaces.starter.service.CarService;
-import com.github.adminfaces.starter.util.Utils;
 import org.omnifaces.cdi.ViewScoped;
 import org.omnifaces.util.Faces;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
-import javax.inject.Inject;
 import javax.inject.Named;
 import java.io.Serializable;
-import java.util.logging.Logger;
-
-import static com.github.adminfaces.template.util.Assert.has;
+import java.util.logging.Level;
 
 /**
  * @author rmpestano
  */
 @Named
 @ViewScoped
-public class CarFormMB implements Serializable {
-    private Integer id;
-    private Car car;
+@BeanService(CarService.class)//use annotation instead of setter
+public class CarFormMB extends CrudMB<Car> implements Serializable {
 
-    @Inject
-    CarService carService;
-
-    public void init() {
-        if (Faces.isAjaxRequest()) {
-            return;
-        }
-        if (has(id)) {
-            car = carService.findById(id);
-        } else {
-            car = new Car();
-        }
-    }
-
-    @PostConstruct
-    public void postConstruct() {
-        Logger.getLogger(getClass().getName()).info(getClass() + ": postConstruct");
-    }
-
-    @PreDestroy
-    public void preDestroy() {
-        Logger.getLogger(getClass().getName()).info(getClass() + ": preDestroy");
-    }
-
-    public Integer getId() {
-        return id;
-    }
-
-    public void setId(Integer id) {
-        this.id = id;
-    }
-
-    public Car getCar() {
-        return car;
-    }
-
-    public void setCar(Car car) {
-        this.car = car;
-    }
-
-
-    public void remove() {
-        if (has(car) && has(car.getId())) {
-            carService.remove(car);
-            Utils.addDetailMessage("Car " + car.getModel()
+    public void afterRemove() {
+        try {
+            addDetailMsg("Car " + entity.getModel()
                     + " removed successfully");
-            Faces.getFlash().setKeepMessages(true);
             Faces.redirect("car-list.xhtml");
+            clear();
+            sessionFilter.clear(CarListMB.class.getName());//removes filter saved in session for CarListMB.
+        } catch (Exception e) {
+            log.log(Level.WARNING, "", e);
         }
     }
 
-    public void save() {
-        String msg;
-        if (car.getId() == null) {
-            carService.insert(car);
-            msg = "Car " + car.getModel() + " created successfully";
-        } else {
-            carService.update(car);
-            msg = "Car " + car.getModel() + " updated successfully";
-        }
-        Utils.addDetailMessage(msg);
+    @Override
+    public Car save() {
+        super.save();
+        return null; //if we return the entity MyFaces will add a warn message (in Development stage) because the navigation rule was not found
     }
 
-    public void clear() {
-        car = new Car();
-        id = null;
+    @Override
+    public void afterInsert() {
+        addDetailMsg("Car " + entity.getModel() + " created successfully");
     }
 
-    public boolean isNew() {
-        return car == null || car.getId() == null;
+    @Override
+    public void afterUpdate() {
+        addDetailMsg("Car " + entity.getModel() + " updated successfully");
     }
+
 
 }

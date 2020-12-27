@@ -1,4 +1,4 @@
-= Quarkus AdminFaces Starter
+= Quarkus AdminFaces Starter Persistence
 :page-layout: base
 :source-language: java
 :icons: font
@@ -14,7 +14,7 @@
 :caution-caption: :fire:
 :warning-caption: :warning:
 
-This project shows a `responsive *JSF*` application using https://adminfaces.github.io/site/[AdminFaces^] and running on https://quarkus.io/[Quarkus^].
+This project shows a `responsive *JSF*` application using https://adminfaces.github.io/site/[AdminFaces^] with https://github.com/adminfaces/admin-persistence/[Admin Persistence^] and running on https://quarkus.io/[Quarkus^].
 
 NOTE: Only hotspot is supported.
 
@@ -22,20 +22,20 @@ NOTE: Only hotspot is supported.
 
 === Via Maven
 
-* `git clone https://github.com/adminfaces/quarkus-admin-starter && cd quarkus-admin-starter && mvn compile quarkus:dev`
+* `git clone https://github.com/adminfaces/quarkus-admin-starter-persistence && cd quarkus-admin-starter-persistence && mvn compile quarkus:dev`
 * access http://localhost:8080/
 
 
 === Via Java
 
-`mvn clean package && java -jar target/quarkus-admin-starter-runner.jar`
+`mvn clean package && java -jar target/quarkus-admin-starter-persistence-runner.jar`
 
 === Via Docker
 
 to run via docker execute the following commands:
 
-* `mvn clean package && docker build -f docker/Dockerfile.jvm -t quarkus/admin-starter . && docker run -i --rm -p 8080:8080 quarkus/admin-starter`
+* `mvn clean package && docker build -f docker/Dockerfile.jvm -t quarkus/admin-starter-persistence . && docker run -i --rm -p 8080:8080 quarkus/admin-starter-persistence`
 
 OR run already pushed image:
 
-* `docker run -i --rm --name admin-starter -m 85M -e JAVA_OPTIONS='-Xmx32m -Xms32m' -p 8080:8080 rmpestano/quarkus-admin-starter`
+* `docker run -i --rm --name admin-starter -m 85M -e JAVA_OPTIONS='-Xmx32m -Xms32m' -p 8080:8080 rmpestano/quarkus-admin-starter-persistence`

@@ -1,6 +1,5 @@
 package com.github.adminfaces.starter.infra.security;
 
-import com.github.adminfaces.starter.util.Utils;
 import com.github.adminfaces.template.config.AdminConfig;
 import com.github.adminfaces.template.session.AdminSession;
 import org.omnifaces.util.Faces;
@@ -11,6 +10,8 @@ import javax.enterprise.inject.Alternative;
 import javax.inject.Inject;
 import javax.inject.Named;
 import java.io.Serializable;
+
+import static com.github.adminfaces.persistence.bean.CrudMB.addDetailMsg;
 
 
 @Named
@@ -30,7 +31,7 @@ public class LogonMB extends AdminSession implements Serializable {
 
     public void login() {
         currentUser = email;
-        Utils.addDetailMessage("Logged in successfully as <b>" + email + "</b>");
+        addDetailMsg("Logged in successfully as <b>" + email + "</b>");
         Faces.getExternalContext().getFlash().setKeepMessages(true);
         Faces.redirect(adminConfig.getIndexPage());
     }
